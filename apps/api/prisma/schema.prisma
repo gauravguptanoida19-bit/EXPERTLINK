@@ -1,0 +1,193 @@
+// Prisma schema for ExpertLink PostgreSQL Database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  EXPERT
+  ADMIN
+}
+
+enum QueryStatus {
+  OPEN
+  MATCHED
+  CLOSED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum RelevanceRating {
+  RELEVANT
+  NOT_RELEVANT
+}
+
+model User {
+  id           String         @id @default(uuid())
+  name         String
+  email        String         @unique
+  passwordHash String
+  role         Role           @default(CLIENT)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relations
+  clientQueries      Query[]                @relation("ClientQueries")
+  expertMatches      Match[]                @relation("ExpertMatches")
+  clientBookings     Booking[]              @relation("ClientBookings")
+  expertBookings     Booking[]              @relation("ExpertBookings")
+  refreshTokens      RefreshToken[]
+  auditLogs          AuditLog[]
+  clientFeedbacks    ConsultationFeedback[] @relation("ClientFeedbacks")
+  expertFeedbacks    ConsultationFeedback[] @relation("ExpertFeedbacks")
+  availabilitySlots  AvailabilitySlot[]
+
+  @@map("users")
+}
+
+model Query {
+  id          String      @id @default(uuid())
+  clientId    String
+  title       String
+  description String      @db.Text
+  industry    String
+  budgetUsd   Float
+  status      QueryStatus @default(OPEN)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  client    User                   @relation("ClientQueries", fields: [clientId], references: [id], onDelete: Cascade)
+  matches   Match[]
+  bookings  Booking[]
+  feedbacks ConsultationFeedback[]
+
+  // Composite index on (clientId, status)
+  @@index([clientId, status], name: "idx_query_client_status")
+  @@index([industry], name: "idx_query_industry")
+  @@index([createdAt], name: "idx_query_created_at")
+  @@map("queries")
+}
+
+model Match {
+  id          String   @id @default(uuid())
+  queryId     String
+  expertId    String
+  score       Float
+  explanation Json
+  createdAt   DateTime @default(now())
+
+  // Relations
+  query  Query @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  expert User  @relation("ExpertMatches", fields: [expertId], references: [id], onDelete: Cascade)
+
+  // Composite index on (queryId, score DESC)
+  @@index([queryId, score(sort: Desc)], name: "idx_match_query_score_desc")
+  @@index([expertId], name: "idx_match_expert")
+  @@map("matches")
+}
+
+model Booking {
+  id             String        @id @default(uuid())
+  queryId        String
+  expertId       String
+  clientId       String
+  scheduledAt    DateTime
+  durationMin    Int           @default(60)
+  status         BookingStatus @default(PENDING)
+  ratePerHourUsd Float
+  idempotencyKey String?       @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  query     Query                  @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  expert    User                   @relation("ExpertBookings", fields: [expertId], references: [id], onDelete: Cascade)
+  client    User                   @relation("ClientBookings", fields: [clientId], references: [id], onDelete: Cascade)
+  feedbacks ConsultationFeedback[]
+
+  // Composite index on (expertId, scheduledAt) and unique constraint on slot
+  @@unique([expertId, scheduledAt], name: "uq_expert_scheduled_at")
+  @@index([expertId, scheduledAt], name: "idx_booking_expert_scheduled")
+  @@index([clientId, status], name: "idx_booking_client_status")
+  @@index([status, createdAt], name: "idx_booking_status_created")
+  @@map("bookings")
+}
+
+model AvailabilitySlot {
+  id          String   @id @default(uuid())
+  expertId    String
+  scheduledAt DateTime
+  durationMin Int      @default(60)
+  isBooked    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  expert User @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@unique([expertId, scheduledAt], name: "uq_slot_expert_time")
+  @@index([expertId, isBooked], name: "idx_slot_expert_available")
+  @@map("availability_slots")
+}
+
+model RefreshToken {
+  id               String    @id @default(uuid())
+  tokenHash        String    @unique
+  userId           String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  replacedByToken  String?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "idx_refresh_token_user")
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  resource  String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, action], name: "idx_audit_user_action")
+  @@index([resource, createdAt], name: "idx_audit_resource_date")
+  @@map("audit_logs")
+}
+
+model ConsultationFeedback {
+  id         String          @id @default(uuid())
+  bookingId  String?
+  queryId    String
+  expertId   String
+  clientId   String
+  rating     Int? // 1-5 rating for completed consultation
+  relevance  RelevanceRating @default(RELEVANT) // RELEVANT or NOT_RELEVANT
+  notes      String?         @db.Text
+  createdAt  DateTime        @default(now())
+
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  query   Query    @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  expert  User     @relation("ExpertFeedbacks", fields: [expertId], references: [id], onDelete: Cascade)
+  client  User     @relation("ClientFeedbacks", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([expertId, relevance], name: "idx_feedback_expert_relevance")
+  @@index([queryId], name: "idx_feedback_query")
+  @@map("consultation_feedbacks")
+}

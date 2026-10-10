@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { requestIdMiddleware } from './middleware/request-id';
 import { errorHandler, NotFoundError } from './middleware/error-handler';
 import { healthRouter, metricsRouter } from './modules/health/health.router';
+import { authRouter } from './modules/auth/auth.router';
 
 export function createApp() {
   const app = express();
@@ -41,7 +42,10 @@ export function createApp() {
   // Health check routes
   app.use('/api', healthRouter);
 
-  // Placeholder for modular routes (auth, queries, experts, matching, bookings, etc.)
+  // Authentication & RBAC routes
+  app.use('/api/auth', authRouter);
+
+  // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones
 
   // 404 handler for undefined routes
