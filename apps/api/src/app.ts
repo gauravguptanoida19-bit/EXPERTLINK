@@ -12,6 +12,7 @@ import { bookingRouter } from './modules/bookings/booking.router';
 import { analyticsRouter } from './modules/analytics/analytics.router';
 import { notificationRouter } from './modules/notifications/notification.router';
 import { feedbackRouter } from './modules/feedback/feedback.router';
+import { assistantRouter } from './modules/assistant/assistant.router';
 
 export function createApp() {
   const app = express();
@@ -71,6 +72,9 @@ export function createApp() {
 
   // Feedback loop & Retraining routes
   app.use('/api/feedback', feedbackRouter);
+
+  // AI Assistant routes (Structuring & Pre-call briefs)
+  app.use('/api/assistant', assistantRouter);
 
   // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones
