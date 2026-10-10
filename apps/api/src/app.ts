@@ -11,6 +11,7 @@ import { queryRouter, jobsRouter } from './modules/queries/query.router';
 import { bookingRouter } from './modules/bookings/booking.router';
 import { analyticsRouter } from './modules/analytics/analytics.router';
 import { notificationRouter } from './modules/notifications/notification.router';
+import { feedbackRouter } from './modules/feedback/feedback.router';
 
 export function createApp() {
   const app = express();
@@ -67,6 +68,9 @@ export function createApp() {
 
   // Notifications routes
   app.use('/api/notifications', notificationRouter);
+
+  // Feedback loop & Retraining routes
+  app.use('/api/feedback', feedbackRouter);
 
   // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones
