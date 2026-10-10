@@ -14,7 +14,7 @@ import { SocketService } from '../../core/realtime/socket.service';
         
         <!-- Logo & Brand -->
         <div class="flex items-center space-x-8">
-          <a routerLink="/dashboard" class="flex items-center space-x-2">
+          <a [routerLink]="authService.isAuthenticated() ? '/dashboard' : '/'" class="flex items-center space-x-2">
             <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-md shadow-brand-500/20">
               EL
             </div>

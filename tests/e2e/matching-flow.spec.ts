@@ -1,6 +1,20 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('ExpertLink End-to-End User Journey', () => {
+  test('Landing Page: Renders hero, capabilities, and interactive preview', async ({ page }) => {
+    // 1. Visit root landing page
+    await page.goto('/');
+    await expect(page).toHaveTitle(/ExpertLink/);
+    await expect(page.locator('h1')).toContainText('Connect with vetted industry leaders');
+    await expect(page.locator('text=384-Dim')).toBeVisible();
+    await expect(page.locator('text=Get Started Free')).toBeVisible();
+
+    // 2. Click "Get Started Free" leading to register
+    await page.click('text=Get Started Free');
+    await page.waitForURL('**/register');
+    await expect(page.locator('h1')).toContainText('Create an Account');
+  });
+
   test('Complete matching flow: Login -> Post Query -> View ML Matches -> Book Consultation', async ({ page }) => {
     // 1. Visit Login Page
     await page.goto('/login');

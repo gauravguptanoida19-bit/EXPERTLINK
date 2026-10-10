@@ -5,7 +5,7 @@ export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'dashboard'
+    loadComponent: () => import('./features/landing/landing.component').then(m => m.LandingComponent)
   },
   {
     path: 'login',
@@ -54,7 +54,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/admin-analytics/admin-analytics.component').then(m => m.AdminAnalyticsComponent)
   },
   {
+    path: 'landing',
+    redirectTo: ''
+  },
+  {
     path: '**',
-    redirectTo: 'dashboard'
+    redirectTo: ''
   }
 ];
