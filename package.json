@@ -1,0 +1,35 @@
+{
+  "name": "expertlink-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-style expert-network matching platform monorepo",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run start --workspace=apps/web",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "test:api": "npm run test --workspace=apps/api",
+    "test:web": "npm run test --workspace=apps/web",
+    "test:ml": "cd apps/ml-service && pytest",
+    "test:e2e": "playwright test",
+    "seed": "npm run seed --workspace=apps/api",
+    "seed:large": "npm run seed:large --workspace=apps/api",
+    "benchmark": "npm run benchmark --workspace=apps/api"
+  },
+  "keywords": [
+    "expert-network",
+    "machine-learning",
+    "angular",
+    "node",
+    "fastapi",
+    "prisma",
+    "mongoose",
+    "bullmq"
+  ],
+  "author": "ExpertLink Team",
+  "license": "UNLICENSED"
+}

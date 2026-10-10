@@ -1,0 +1,185 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: expertlink-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-expertlink}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-expertlink_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-expertlink_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-expertlink} -d ${POSTGRES_DB:-expertlink_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expertlink-network
+
+  mongo:
+    image: mongo:7.0
+    container_name: expertlink-mongo
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expertlink-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: expertlink-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expertlink-network
+
+  ml-service:
+    build:
+      context: ./apps/ml-service
+      dockerfile: Dockerfile
+    container_name: expertlink-ml
+    restart: unless-stopped
+    environment:
+      - PORT=8000
+      - ML_MODEL_NAME=${ML_MODEL_NAME:-all-MiniLM-L6-v2}
+      - RANKER_WEIGHT_SEMANTIC=${RANKER_WEIGHT_SEMANTIC:-0.40}
+      - RANKER_WEIGHT_SKILLS=${RANKER_WEIGHT_SKILLS:-0.25}
+      - RANKER_WEIGHT_INDUSTRY=${RANKER_WEIGHT_INDUSTRY:-0.15}
+      - RANKER_WEIGHT_EXPERIENCE=${RANKER_WEIGHT_EXPERIENCE:-0.10}
+      - RANKER_WEIGHT_LR_MODEL=${RANKER_WEIGHT_LR_MODEL:-0.10}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - expertlink-network
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: expertlink-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-expertlink}:${POSTGRES_PASSWORD:-expertlink_secret}@postgres:5432/${POSTGRES_DB:-expertlink_db}?schema=public
+      - MONGODB_URI=mongodb://mongo:27017/expertlink_mongo
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-key-minimum-32-chars-long-expertlink-token}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-super-secret-refresh-key-minimum-32-chars-long-expertlink-token}
+      - JWT_ACCESS_EXPIRY=${JWT_ACCESS_EXPIRY:-15m}
+      - JWT_REFRESH_EXPIRY=${JWT_REFRESH_EXPIRY:-7d}
+      - ML_SERVICE_URL=http://ml-service:8000
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:4200}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - expertlink-network
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: expertlink-web
+    restart: unless-stopped
+    ports:
+      - "4200:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - expertlink-network
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: expertlink-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    networks:
+      - expertlink-network
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: expertlink-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - expertlink-network
+
+volumes:
+  postgres_data:
+    driver: local
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  expertlink-network:
+    driver: bridge
