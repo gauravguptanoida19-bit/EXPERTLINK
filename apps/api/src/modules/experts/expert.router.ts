@@ -51,6 +51,20 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// GET /api/experts/me (EXPERT fetches own profile)
+router.get('/me', authenticate, authorize('EXPERT', 'ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.userId;
+    const profile = await expertService.getProfileByUserId(userId);
+    res.status(200).json({
+      success: true,
+      data: profile
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/experts/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {

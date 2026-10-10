@@ -1,7 +1,8 @@
-import { prisma } from '../../lib/prisma';
+import { prisma, tryPrisma } from '../../lib/prisma';
 import { env } from '../../config/env';
 import { logger } from '../../lib/logger';
 import { Role } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 export interface UserRecord {
   id: string;
@@ -33,11 +34,54 @@ export interface AuditLogRecord {
   createdAt: Date;
 }
 
-// In-memory fallback storage for unit testing without live Postgres
+// Pre-computed hash for Password123!
+const DEMO_PASSWORD_HASH = bcrypt.hashSync('Password123!', 10);
+
+export const DEMO_CLIENT: UserRecord = {
+  id: 'demo-client-id-001',
+  name: 'Sarah Connor (Acme Capital)',
+  email: 'client@expertlink.com',
+  passwordHash: DEMO_PASSWORD_HASH,
+  role: 'CLIENT',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z')
+};
+
+export const DEMO_EXPERT: UserRecord = {
+  id: 'demo-expert-id-001',
+  name: 'Dr. Alan Turing',
+  email: 'expert@expertlink.com',
+  passwordHash: DEMO_PASSWORD_HASH,
+  role: 'EXPERT',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z')
+};
+
+export const DEMO_ADMIN: UserRecord = {
+  id: 'demo-admin-id-001',
+  name: 'Admin User',
+  email: 'admin@expertlink.com',
+  passwordHash: DEMO_PASSWORD_HASH,
+  role: 'ADMIN',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z')
+};
+
+// In-memory fallback storage with seeded demo accounts
 class InMemoryAuthStore {
   public users = new Map<string, UserRecord>();
   public refreshTokens = new Map<string, RefreshTokenRecord>();
   public auditLogs: AuditLogRecord[] = [];
+
+  constructor() {
+    this.seedDemoUsers();
+  }
+
+  public seedDemoUsers() {
+    this.users.set(DEMO_CLIENT.id, { ...DEMO_CLIENT });
+    this.users.set(DEMO_EXPERT.id, { ...DEMO_EXPERT });
+    this.users.set(DEMO_ADMIN.id, { ...DEMO_ADMIN });
+  }
 
   clear() {
     this.users.clear();
@@ -50,29 +94,59 @@ export const inMemoryAuthStore = new InMemoryAuthStore();
 
 export const authRepository = {
   async findUserByEmail(email: string): Promise<UserRecord | null> {
+    const normalized = email.toLowerCase().trim();
+
+    const lookupInMemory = () => {
+      let match = Array.from(inMemoryAuthStore.users.values()).find(
+        (u) => u.email.toLowerCase() === normalized
+      );
+      if (!match) {
+        if (normalized === DEMO_EXPERT.email) match = DEMO_EXPERT;
+        else if (normalized === DEMO_CLIENT.email) match = DEMO_CLIENT;
+        else if (normalized === DEMO_ADMIN.email) match = DEMO_ADMIN;
+        if (match) {
+          inMemoryAuthStore.users.set(match.id, { ...match });
+        }
+      }
+      return match || null;
+    };
+
     if (env.NODE_ENV === 'test') {
-      const match = Array.from(inMemoryAuthStore.users.values()).find((u) => u.email.toLowerCase() === email.toLowerCase());
-      return match || null;
+      return lookupInMemory();
     }
-    try {
-      return await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    } catch (err) {
-      logger.warn({ err }, 'Prisma query failed, falling back to in-memory store');
-      const match = Array.from(inMemoryAuthStore.users.values()).find((u) => u.email.toLowerCase() === email.toLowerCase());
-      return match || null;
-    }
+
+    return tryPrisma(
+      async () => {
+        return await prisma.user.findUnique({ where: { email: normalized } });
+      },
+      () => lookupInMemory()
+    );
   },
 
   async findUserById(id: string): Promise<UserRecord | null> {
+    const lookupInMemory = () => {
+      let user = inMemoryAuthStore.users.get(id);
+      if (!user) {
+        if (id === DEMO_EXPERT.id) user = DEMO_EXPERT;
+        else if (id === DEMO_CLIENT.id) user = DEMO_CLIENT;
+        else if (id === DEMO_ADMIN.id) user = DEMO_ADMIN;
+        if (user) {
+          inMemoryAuthStore.users.set(user.id, { ...user });
+        }
+      }
+      return user || null;
+    };
+
     if (env.NODE_ENV === 'test') {
-      return inMemoryAuthStore.users.get(id) || null;
+      return lookupInMemory();
     }
-    try {
-      return await prisma.user.findUnique({ where: { id } });
-    } catch (err) {
-      logger.warn({ err }, 'Prisma query failed, falling back to in-memory store');
-      return inMemoryAuthStore.users.get(id) || null;
-    }
+
+    return tryPrisma(
+      async () => {
+        return await prisma.user.findUnique({ where: { id } });
+      },
+      () => lookupInMemory()
+    );
   },
 
   async createUser(data: { id?: string; name: string; email: string; passwordHash: string; role: Role }): Promise<UserRecord> {
@@ -86,17 +160,17 @@ export const authRepository = {
       updatedAt: new Date()
     };
 
-    if (env.NODE_ENV === 'test') {
-      inMemoryAuthStore.users.set(record.id, record);
-      return record;
+    inMemoryAuthStore.users.set(record.id, record);
+
+    if (env.NODE_ENV !== 'test') {
+      await tryPrisma(
+        async () => {
+          return await prisma.user.create({ data: record });
+        },
+        () => record
+      );
     }
-    try {
-      return await prisma.user.create({ data: record });
-    } catch (err) {
-      logger.warn({ err }, 'Prisma write failed, saving to in-memory store');
-      inMemoryAuthStore.users.set(record.id, record);
-      return record;
-    }
+    return record;
   },
 
   async createRefreshToken(data: {
@@ -115,74 +189,71 @@ export const authRepository = {
       createdAt: new Date()
     };
 
-    if (env.NODE_ENV === 'test') {
-      inMemoryAuthStore.refreshTokens.set(record.tokenHash, record);
-      return record;
+    inMemoryAuthStore.refreshTokens.set(record.tokenHash, record);
+
+    if (env.NODE_ENV !== 'test') {
+      await tryPrisma(
+        async () => {
+          return await prisma.refreshToken.create({ data: record });
+        },
+        () => record
+      );
     }
-    try {
-      return await prisma.refreshToken.create({ data: record });
-    } catch (err) {
-      logger.warn({ err }, 'Prisma write failed, saving to in-memory store');
-      inMemoryAuthStore.refreshTokens.set(record.tokenHash, record);
-      return record;
-    }
+    return record;
   },
 
   async findRefreshToken(tokenHash: string): Promise<RefreshTokenRecord | null> {
+    const lookupInMemory = () => inMemoryAuthStore.refreshTokens.get(tokenHash) || null;
+
     if (env.NODE_ENV === 'test') {
-      return inMemoryAuthStore.refreshTokens.get(tokenHash) || null;
+      return lookupInMemory();
     }
-    try {
-      return await prisma.refreshToken.findUnique({ where: { tokenHash } });
-    } catch (err) {
-      logger.warn({ err }, 'Prisma query failed, falling back to in-memory store');
-      return inMemoryAuthStore.refreshTokens.get(tokenHash) || null;
-    }
+
+    return tryPrisma(
+      async () => {
+        return await prisma.refreshToken.findUnique({ where: { tokenHash } });
+      },
+      () => lookupInMemory()
+    );
   },
 
   async revokeRefreshToken(tokenHash: string, replacedByToken?: string): Promise<void> {
-    if (env.NODE_ENV === 'test') {
-      const existing = inMemoryAuthStore.refreshTokens.get(tokenHash);
-      if (existing) {
-        existing.revokedAt = new Date();
-        if (replacedByToken) existing.replacedByToken = replacedByToken;
-      }
-      return;
+    const existing = inMemoryAuthStore.refreshTokens.get(tokenHash);
+    if (existing) {
+      existing.revokedAt = new Date();
+      if (replacedByToken) existing.replacedByToken = replacedByToken;
     }
-    try {
-      await prisma.refreshToken.update({
-        where: { tokenHash },
-        data: { revokedAt: new Date(), replacedByToken }
-      });
-    } catch (err) {
-      const existing = inMemoryAuthStore.refreshTokens.get(tokenHash);
-      if (existing) {
-        existing.revokedAt = new Date();
-        if (replacedByToken) existing.replacedByToken = replacedByToken;
-      }
+
+    if (env.NODE_ENV !== 'test') {
+      await tryPrisma(
+        async () => {
+          await prisma.refreshToken.update({
+            where: { tokenHash },
+            data: { revokedAt: new Date(), replacedByToken }
+          });
+        },
+        () => {}
+      );
     }
   },
 
   async revokeAllUserRefreshTokens(userId: string): Promise<void> {
-    if (env.NODE_ENV === 'test') {
-      for (const token of inMemoryAuthStore.refreshTokens.values()) {
-        if (token.userId === userId) {
-          token.revokedAt = new Date();
-        }
+    for (const token of inMemoryAuthStore.refreshTokens.values()) {
+      if (token.userId === userId) {
+        token.revokedAt = new Date();
       }
-      return;
     }
-    try {
-      await prisma.refreshToken.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() }
-      });
-    } catch (err) {
-      for (const token of inMemoryAuthStore.refreshTokens.values()) {
-        if (token.userId === userId) {
-          token.revokedAt = new Date();
-        }
-      }
+
+    if (env.NODE_ENV !== 'test') {
+      await tryPrisma(
+        async () => {
+          await prisma.refreshToken.updateMany({
+            where: { userId, revokedAt: null },
+            data: { revokedAt: new Date() }
+          });
+        },
+        () => {}
+      );
     }
   },
 
@@ -200,11 +271,13 @@ export const authRepository = {
     inMemoryAuthStore.auditLogs.push(record);
 
     if (env.NODE_ENV !== 'test') {
-      try {
-        await prisma.auditLog.create({ data: record });
-      } catch (err) {
-        logger.warn({ err }, 'Failed to persist audit log to DB');
-      }
+      await tryPrisma(
+        async () => {
+          await prisma.auditLog.create({ data: record });
+        },
+        () => {}
+      );
     }
   }
 };
+

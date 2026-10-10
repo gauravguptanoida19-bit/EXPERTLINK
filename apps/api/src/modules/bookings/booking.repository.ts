@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/prisma';
+import { prisma, tryPrisma } from '../../lib/prisma';
 import { env } from '../../config/env';
 import { logger } from '../../lib/logger';
 import { BookingStatus } from '@prisma/client';
@@ -27,11 +27,39 @@ export interface AvailabilitySlotRecord {
   createdAt: Date;
 }
 
+export const INITIAL_DEMO_BOOKINGS: BookingRecord[] = [
+  {
+    id: 'booking_demo_001',
+    queryId: 'query_demo_001',
+    expertId: 'demo-expert-id-001',
+    clientId: 'demo-client-id-001',
+    scheduledAt: new Date(Date.now() + 86400000), // tomorrow
+    durationMin: 60,
+    status: 'CONFIRMED',
+    ratePerHourUsd: 450,
+    idempotencyKey: 'idem_demo_001',
+    createdAt: new Date('2026-01-02T12:00:00Z'),
+    updatedAt: new Date('2026-01-02T12:00:00Z')
+  }
+];
+
 class InMemoryBookingStore {
   public bookings = new Map<string, BookingRecord>();
   public idempotencyKeys = new Map<string, BookingRecord>();
   public expertTimeSlots = new Set<string>(); // "expertId:ISOString"
   public availabilitySlots = new Map<string, AvailabilitySlotRecord>();
+
+  constructor() {
+    this.seedDemoBookings();
+  }
+
+  public seedDemoBookings() {
+    for (const b of INITIAL_DEMO_BOOKINGS) {
+      this.bookings.set(b.id, { ...b });
+      const slotKey = `${b.expertId}:${b.scheduledAt.toISOString()}`;
+      this.expertTimeSlots.add(slotKey);
+    }
+  }
 
   clear() {
     this.bookings.clear();
@@ -49,12 +77,14 @@ export const bookingRepository = {
     if (mem) return mem;
 
     if (env.NODE_ENV !== 'test') {
-      try {
-        const found = await prisma.booking.findUnique({
-          where: { idempotencyKey: key }
-        });
-        if (found) return found;
-      } catch (_) {}
+      return tryPrisma(
+        async () => {
+          return await prisma.booking.findUnique({
+            where: { idempotencyKey: key }
+          });
+        },
+        () => null
+      );
     }
     return null;
   },
@@ -100,30 +130,26 @@ export const bookingRepository = {
     }
 
     if (env.NODE_ENV !== 'test') {
-      try {
-        // Double-booking prevention with database transaction + unique constraint
-        const created = await prisma.$transaction(async (tx) => {
-          const conflict = await tx.booking.findUnique({
-            where: {
-              uq_expert_scheduled_at: {
-                expertId: data.expertId,
-                scheduledAt: data.scheduledAt
+      await tryPrisma(
+        async () => {
+          return await prisma.$transaction(async (tx) => {
+            const conflict = await tx.booking.findUnique({
+              where: {
+                uq_expert_scheduled_at: {
+                  expertId: data.expertId,
+                  scheduledAt: data.scheduledAt
+                }
               }
+            });
+            if (conflict && conflict.status !== 'CANCELLED') {
+              throw new ConflictError('Expert is already booked for this scheduled slot');
             }
-          });
-          if (conflict && conflict.status !== 'CANCELLED') {
-            throw new ConflictError('Expert is already booked for this scheduled slot');
-          }
 
-          return await tx.booking.create({ data: record });
-        });
-        return created;
-      } catch (err: any) {
-        if (err.code === 'P2002') {
-          throw new ConflictError('Expert is already booked for this scheduled slot');
-        }
-        logger.warn({ err: err.message }, 'Prisma booking create failed');
-      }
+            return await tx.booking.create({ data: record });
+          });
+        },
+        () => record
+      );
     }
 
     return record;
@@ -134,14 +160,21 @@ export const bookingRepository = {
     if (mem) return mem;
 
     if (env.NODE_ENV !== 'test') {
-      try {
-        return await prisma.booking.findUnique({ where: { id } });
-      } catch (_) {}
+      return tryPrisma(
+        async () => {
+          return await prisma.booking.findUnique({ where: { id } });
+        },
+        () => null
+      );
     }
     return null;
   },
 
   async listBookings(filters: { userId: string; role: string; status?: BookingStatus }): Promise<BookingRecord[]> {
+    if (inMemoryBookingStore.bookings.size === 0 && env.NODE_ENV !== 'test') {
+      inMemoryBookingStore.seedDemoBookings();
+    }
+
     let all = Array.from(inMemoryBookingStore.bookings.values());
 
     if (filters.role === 'CLIENT') {
@@ -170,12 +203,15 @@ export const bookingRepository = {
     }
 
     if (env.NODE_ENV !== 'test') {
-      try {
-        return await prisma.booking.update({
-          where: { id },
-          data: { status }
-        });
-      } catch (_) {}
+      await tryPrisma(
+        async () => {
+          return await prisma.booking.update({
+            where: { id },
+            data: { status }
+          });
+        },
+        () => b || null
+      );
     }
 
     return b || null;
@@ -219,18 +255,22 @@ export const bookingRepository = {
     }
 
     if (env.NODE_ENV !== 'test') {
-      try {
-        const res = await prisma.booking.updateMany({
-          where: {
-            status: 'PENDING',
-            createdAt: { lt: cutoff }
-          },
-          data: { status: 'CANCELLED' }
-        });
-        return res.count;
-      } catch (_) {}
+      await tryPrisma(
+        async () => {
+          const res = await prisma.booking.updateMany({
+            where: {
+              status: 'PENDING',
+              createdAt: { lt: cutoff }
+            },
+            data: { status: 'CANCELLED' }
+          });
+          return res.count;
+        },
+        () => expiredCount
+      );
     }
 
     return expiredCount;
   }
 };
+
