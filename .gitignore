@@ -57,3 +57,6 @@ venv/
 .venv/
 env/
 ENV/
+
+# Dynamic ML model checkpoints
+apps/ml-service/models/ranker_v*.joblib
