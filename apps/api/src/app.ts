@@ -13,6 +13,7 @@ import { analyticsRouter } from './modules/analytics/analytics.router';
 import { notificationRouter } from './modules/notifications/notification.router';
 import { feedbackRouter } from './modules/feedback/feedback.router';
 import { assistantRouter } from './modules/assistant/assistant.router';
+import { docsRouter } from './modules/docs/docs.router';
 
 export function createApp() {
   const app = express();
@@ -75,6 +76,9 @@ export function createApp() {
 
   // AI Assistant routes (Structuring & Pre-call briefs)
   app.use('/api/assistant', assistantRouter);
+
+  // OpenAPI Swagger Documentation
+  app.use('/api/docs', docsRouter);
 
   // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones
