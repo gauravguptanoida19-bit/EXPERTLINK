@@ -8,6 +8,8 @@ import { healthRouter, metricsRouter } from './modules/health/health.router';
 import { authRouter } from './modules/auth/auth.router';
 import { expertRouter } from './modules/experts/expert.router';
 import { queryRouter, jobsRouter } from './modules/queries/query.router';
+import { bookingRouter } from './modules/bookings/booking.router';
+import { analyticsRouter } from './modules/analytics/analytics.router';
 
 export function createApp() {
   const app = express();
@@ -55,6 +57,12 @@ export function createApp() {
 
   // Async Background Jobs routes
   app.use('/api/jobs', jobsRouter);
+
+  // Bookings Engine routes
+  app.use('/api/bookings', bookingRouter);
+
+  // Analytics routes
+  app.use('/api/analytics', analyticsRouter);
 
   // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones
