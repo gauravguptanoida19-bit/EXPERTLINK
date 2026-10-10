@@ -7,6 +7,7 @@ import { errorHandler, NotFoundError } from './middleware/error-handler';
 import { healthRouter, metricsRouter } from './modules/health/health.router';
 import { authRouter } from './modules/auth/auth.router';
 import { expertRouter } from './modules/experts/expert.router';
+import { queryRouter, jobsRouter } from './modules/queries/query.router';
 
 export function createApp() {
   const app = express();
@@ -48,6 +49,12 @@ export function createApp() {
 
   // Expert Profiles routes
   app.use('/api/experts', expertRouter);
+
+  // Research Queries & Matching routes
+  app.use('/api/queries', queryRouter);
+
+  // Async Background Jobs routes
+  app.use('/api/jobs', jobsRouter);
 
   // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones

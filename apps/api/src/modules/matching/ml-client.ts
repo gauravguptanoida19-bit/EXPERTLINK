@@ -44,6 +44,10 @@ export class MlServiceClient {
   private baseUrl = env.ML_SERVICE_URL;
 
   public async embed(text: string): Promise<number[]> {
+    if (env.NODE_ENV === 'test') {
+      return this.fallbackEmbedding(text);
+    }
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
@@ -77,6 +81,11 @@ export class MlServiceClient {
     topK?: number;
   }): Promise<RankResponsePayload> {
     const t0 = Date.now();
+
+    if (env.NODE_ENV === 'test') {
+      return this.fallbackRank(params, Date.now() - t0);
+    }
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);
@@ -156,7 +165,12 @@ export class MlServiceClient {
   }, elapsedMs: number): RankResponsePayload {
     const qLower = params.queryText.toLowerCase();
     const scored = params.candidates.map((c) => {
-      const matchedSkills = c.skills.filter((s) => qLower.includes(s.toLowerCase()));
+      const matchedSkills = c.skills.filter((skill) => {
+        const sLower = skill.toLowerCase();
+        if (qLower.includes(sLower)) return true;
+        const words = sLower.split(/\s+/).filter((w) => w.length > 2);
+        return words.length > 0 && words.every((w) => qLower.includes(w));
+      });
       const skillsScore = c.skills.length > 0 ? matchedSkills.length / c.skills.length : 0.0;
       const industryMatch = params.queryIndustry
         ? c.industries.some((i) => i.toLowerCase().includes(params.queryIndustry!.toLowerCase()))
