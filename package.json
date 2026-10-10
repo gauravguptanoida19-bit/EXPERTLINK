@@ -31,5 +31,8 @@
     "bullmq"
   ],
   "author": "ExpertLink Team",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@playwright/test": "^1.64.0"
+  }
 }
