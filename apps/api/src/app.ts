@@ -10,6 +10,7 @@ import { expertRouter } from './modules/experts/expert.router';
 import { queryRouter, jobsRouter } from './modules/queries/query.router';
 import { bookingRouter } from './modules/bookings/booking.router';
 import { analyticsRouter } from './modules/analytics/analytics.router';
+import { notificationRouter } from './modules/notifications/notification.router';
 
 export function createApp() {
   const app = express();
@@ -63,6 +64,9 @@ export function createApp() {
 
   // Analytics routes
   app.use('/api/analytics', analyticsRouter);
+
+  // Notifications routes
+  app.use('/api/notifications', notificationRouter);
 
   // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones

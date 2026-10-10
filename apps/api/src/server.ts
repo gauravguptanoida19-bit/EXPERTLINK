@@ -4,10 +4,14 @@ import { env } from './config/env';
 import { logger } from './lib/logger';
 import { connectMongo, disconnectMongo } from './lib/mongo';
 import { redis } from './lib/redis';
+import { initSocketIO } from './realtime/socket';
 
 async function bootstrap() {
   const app = createApp();
   const server = http.createServer(app);
+
+  // Initialize Socket.IO gateway
+  initSocketIO(server);
 
   // Initialize DBs
   await connectMongo();
