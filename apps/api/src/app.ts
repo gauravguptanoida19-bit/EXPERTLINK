@@ -6,6 +6,7 @@ import { requestIdMiddleware } from './middleware/request-id';
 import { errorHandler, NotFoundError } from './middleware/error-handler';
 import { healthRouter, metricsRouter } from './modules/health/health.router';
 import { authRouter } from './modules/auth/auth.router';
+import { expertRouter } from './modules/experts/expert.router';
 
 export function createApp() {
   const app = express();
@@ -44,6 +45,9 @@ export function createApp() {
 
   // Authentication & RBAC routes
   app.use('/api/auth', authRouter);
+
+  // Expert Profiles routes
+  app.use('/api/experts', expertRouter);
 
   // Placeholder for modular routes (queries, experts, matching, bookings, etc.)
   // These will be mounted in their respective milestones
