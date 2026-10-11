@@ -13,3 +13,4 @@ Offline evaluation metrics tracked for each trained version of the ExpertLink ra
 | ranker_v8940 | 2026-10-10T22:14:08.945Z | 1000 | 0.82 | 0.885 | Nightly BullMQ retrain on feedback + bookings |
 | ranker_v4 | 2026-10-10T22:22:21.720Z | 1000 | 0.89 | 0.9391 | Nightly BullMQ retrain on feedback + bookings |
 | ranker_v5 | 2026-10-10T22:26:49.571Z | 1000 | 0.89 | 0.9391 | Nightly BullMQ retrain on feedback + bookings |
+| ranker_v6 | 2026-10-11T08:48:05.267Z | 1000 | 0.89 | 0.9391 | Nightly BullMQ retrain on feedback + bookings |

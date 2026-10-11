@@ -1,12 +1,16 @@
 # ExpertLink — Production Expert-Network Matching Platform
 
-[![CI Pipeline](https://github.com/expertlink/expertlink/actions/workflows/ci.yml/badge.svg)](https://github.com/expertlink/expertlink/actions/workflows/ci.yml)
+[![GitHub Pages](https://img.shields.io/badge/Live_Demo-GitHub_Pages-2ea44f.svg?logo=github)](https://gauravguptanoida19-bit.github.io/EXPERTLINK/)
+[![CI Pipeline](https://github.com/gauravguptanoida19-bit/EXPERTLINK/actions/workflows/ci.yml/badge.svg)](https://github.com/gauravguptanoida19-bit/EXPERTLINK/actions)
 [![Angular 18](https://img.shields.io/badge/Angular-18.0-dd0031.svg?logo=angular)](https://angular.dev)
 [![Node.js 20](https://img.shields.io/badge/Node.js-20.x-339933.svg?logo=nodedotjs)](https://nodejs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16.0-4169e1.svg?logo=postgresql)](https://www.postgresql.org)
 [![MongoDB 7](https://img.shields.io/badge/MongoDB-7.0-47a248.svg?logo=mongodb)](https://www.mongodb.com)
 [![Redis 7](https://img.shields.io/badge/Redis-7.0-dc382d.svg?logo=redis)](https://redis.io)
+
+> 🌐 **Live Demo on GitHub Pages**: **[https://gauravguptanoida19-bit.github.io/EXPERTLINK/](https://gauravguptanoida19-bit.github.io/EXPERTLINK/)**  
+> Explore the 1-Click demo accounts, research queries, hybrid ML match ranking, booking consultations, and admin analytics directly in your browser.
 
 **ExpertLink** is a production-grade expert-network matching platform. Clients post research queries, the system ranks the best industry experts using a hybrid ML pipeline (dense embeddings, Jaccard skill overlap, and logistic regression booking likelihood), and clients book advisory consultations with guaranteed idempotency and double-booking protection.
 

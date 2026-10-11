@@ -11,6 +11,7 @@
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:web": "npm run start --workspace=apps/web",
     "build": "npm run build --workspaces",
+    "build:gh-pages": "npm run build:gh-pages --workspace=apps/web",
     "test": "npm run test --workspaces",
     "test:api": "npm run test --workspace=apps/api",
     "test:web": "npm run test --workspace=apps/web",
